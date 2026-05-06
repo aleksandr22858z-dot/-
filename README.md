@@ -10,10 +10,3 @@ Training Planner — это графическое приложение на Pyt
 
 - Python 3.6 или выше
 - Tkinter (входит в стандартную библиотеку Python)
-
-## Установка и запуск
-
-1. Клонируйте репозиторий:
-```bash
-git clone https://github.com/your-username/training-planner.git
-cd training-planner# -
