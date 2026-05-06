@@ -1,0 +1,174 @@
+import json
+import os
+from datetime import datetime
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+DATA_FILE = "trainings.json"
+
+
+class TrainingPlanner:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Training Planner")
+        self.root.geometry("700x500")
+
+        self.trainings = []
+        self.load_data()
+
+        # Поля ввода
+        input_frame = ttk.LabelFrame(root, text="Добавить тренировку", padding=10)
+        input_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(input_frame, text="Дата (ГГГГ-ММ-ДД):").grid(row=0, column=0, sticky="w")
+        self.date_entry = ttk.Entry(input_frame, width=15)
+        self.date_entry.grid(row=0, column=1, padx=5)
+
+        ttk.Label(input_frame, text="Тип тренировки:").grid(row=0, column=2, sticky="w")
+        self.type_entry = ttk.Entry(input_frame, width=15)
+        self.type_entry.grid(row=0, column=3, padx=5)
+
+        ttk.Label(input_frame, text="Длительность (мин):").grid(row=0, column=4, sticky="w")
+        self.duration_entry = ttk.Entry(input_frame, width=10)
+        self.duration_entry.grid(row=0, column=5, padx=5)
+
+        self.add_btn = ttk.Button(input_frame, text="Добавить тренировку", command=self.add_training)
+        self.add_btn.grid(row=0, column=6, padx=10)
+
+        # Фильтры
+        filter_frame = ttk.LabelFrame(root, text="Фильтры", padding=10)
+        filter_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(filter_frame, text="Тип тренировки:").grid(row=0, column=0, sticky="w")
+        self.filter_type_entry = ttk.Entry(filter_frame, width=15)
+        self.filter_type_entry.grid(row=0, column=1, padx=5)
+        self.filter_type_entry.bind("<KeyRelease>", self.apply_filters)
+
+        ttk.Label(filter_frame, text="Дата (ГГГГ-ММ-ДД):").grid(row=0, column=2, sticky="w")
+        self.filter_date_entry = ttk.Entry(filter_frame, width=15)
+        self.filter_date_entry.grid(row=0, column=3, padx=5)
+        self.filter_date_entry.bind("<KeyRelease>", self.apply_filters)
+
+        self.clear_filter_btn = ttk.Button(filter_frame, text="Сбросить фильтры", command=self.clear_filters)
+        self.clear_filter_btn.grid(row=0, column=4, padx=10)
+
+        # Таблица
+        table_frame = ttk.Frame(root)
+        table_frame.pack(fill="both", expand=True, padx=10, pady=5)
+
+        columns = ("date", "type", "duration")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
+        self.tree.heading("date", text="Дата")
+        self.tree.heading("type", text="Тип тренировки")
+        self.tree.heading("duration", text="Длительность (мин)")
+
+        self.tree.column("date", width=150)
+        self.tree.column("type", width=200)
+        self.tree.column("duration", width=120)
+
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+
+        self.tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        self.refresh_table()
+
+    def validate_date(self, date_str):
+        try:
+            datetime.strptime(date_str, "%Y-%m-%d")
+            return True
+        except ValueError:
+            return False
+
+    def validate_duration(self, duration_str):
+        try:
+            duration = float(duration_str)
+            return duration > 0
+        except ValueError:
+            return False
+
+    def add_training(self):
+        date = self.date_entry.get().strip()
+        training_type = self.type_entry.get().strip()
+        duration = self.duration_entry.get().strip()
+
+        if not date or not training_type or not duration:
+            messagebox.showerror("Ошибка", "Заполните все поля!")
+            return
+
+        if not self.validate_date(date):
+            messagebox.showerror("Ошибка", "Неверный формат даты! Используйте ГГГГ-ММ-ДД")
+            return
+
+        if not self.validate_duration(duration):
+            messagebox.showerror("Ошибка", "Длительность должна быть положительным числом!")
+            return
+
+        training = {
+            "date": date,
+            "type": training_type,
+            "duration": float(duration)
+        }
+        self.trainings.append(training)
+        self.save_data()
+        self.refresh_table()
+        self.clear_inputs()
+
+    def clear_inputs(self):
+        self.date_entry.delete(0, tk.END)
+        self.type_entry.delete(0, tk.END)
+        self.duration_entry.delete(0, tk.END)
+
+    def apply_filters(self, event=None):
+        filter_type = self.filter_type_entry.get().strip().lower()
+        filter_date = self.filter_date_entry.get().strip()
+
+        filtered = []
+        for t in self.trainings:
+            if filter_type and filter_type not in t["type"].lower():
+                continue
+            if filter_date and filter_date != t["date"]:
+                continue
+            filtered.append(t)
+
+        self.refresh_table(filtered)
+
+    def clear_filters(self):
+        self.filter_type_entry.delete(0, tk.END)
+        self.filter_date_entry.delete(0, tk.END)
+        self.refresh_table()
+
+    def refresh_table(self, data=None):
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+
+        if data is None:
+            data = self.trainings
+
+        for training in data:
+            self.tree.insert("", tk.END, values=(
+                training["date"],
+                training["type"],
+                training["duration"]
+            ))
+
+    def save_data(self):
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.trainings, f, indent=4, ensure_ascii=False)
+
+    def load_data(self):
+        if os.path.exists(DATA_FILE):
+            try:
+                with open(DATA_FILE, "r", encoding="utf-8") as f:
+                    self.trainings = json.load(f)
+            except (json.JSONDecodeError, FileNotFoundError):
+                self.trainings = []
+        else:
+            self.trainings = []
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = TrainingPlanner(root)
+    root.mainloop()
